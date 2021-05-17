@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Kafka setup for Waterstream
+
+Parameters:
+  #######################
+  ## Kafka
+  #######################
+  KafkaVersion:
+    Description: Version of Kafka to deploy
+    Type: String
+    Default: "2.6.0"
+  KafkaNodes:
+    Description: Number of Kafka nodes
+    Type: Number
+    Default: 3
+    MinValue: 3
+    MaxValue: 30
+  KafkaInstance:
+    Description: Kafka instance type
+    Type: String
+    Default: "kafka.t3.small"
+    AllowedValues:
+      - "kafka.t3.small"
+      - "kafka.m5.large"
+      - "kafka.m5.xlarge"
+      - "kafka.m5.2xlarge"
+      - "kafka.m5.4xlarge"
+      - "kafka.m5.8xlarge"
+      - "kafka.m5.12xlarge"
+      - "kafka.m5.16xlarge"
+      - "kafka.m5.24xlarge"
+  KafkaVolumeSize:
+    Description: Volume size for Kafka instances, GB
+    Type: Number
+    Default: 50
+    MinValue: 10
+    MaxValue: 1000
+
+Outputs:
+  MSKForWaterstreamId:
+    Value: !Ref KafkaForWaterstream
+    Export:
+      Name: MSKForWaterstreamId
+
+Resources:
+
+  #######################
+  ## Kafka - MSK
+  #######################
+
+  KafkaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to client host
+      VpcId: !ImportValue WaterstreamVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 9090
+          ToPort: 9095
+          CidrIp: !ImportValue WaterstreamVpcCidr
+        - IpProtocol: tcp
+          FromPort: 11001
+          ToPort: 11002
+          CidrIp: !ImportValue WaterstreamVpcCidr
+
+#      SecurityGroupEgress:
+#        - IpProtocol: "-1"
+#          FromPort: 0
+#          ToPort: 0
+#          CidrIp: !ImportValue WaterstreamVpcCidr
+
+  KafkaForWaterstream:
+    Type: AWS::MSK::Cluster
+    Properties:
+      ClusterName: KafkaForWaterstream
+      KafkaVersion: !Ref KafkaVersion
+      NumberOfBrokerNodes: !Ref KafkaNodes
+      EnhancedMonitoring: DEFAULT
+      EncryptionInfo:
+        EncryptionInTransit:
+          ClientBroker: PLAINTEXT
+      OpenMonitoring:
+        Prometheus:
+          JmxExporter:
+            EnabledInBroker: "true"
+          NodeExporter:
+            EnabledInBroker: "true"
+      BrokerNodeGroupInfo:
+        InstanceType: !Ref KafkaInstance
+        StorageInfo:
+          EBSStorageInfo:
+            VolumeSize: !Ref KafkaVolumeSize
+        SecurityGroups:
+          - !Ref KafkaSecurityGroup
+        ClientSubnets:
+          - !ImportValue WaterstreamPrivateSubnet1
+          - !ImportValue WaterstreamPrivateSubnet2
+          - !ImportValue WaterstreamPrivateSubnet3
+

@@ -1,0 +1,1027 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Waterstream setup
+
+Parameters:
+  WaterstreamClusterName:
+    Description: Waterstream cluster name - for resource names disambiguation
+    Type: String
+    Default: "waterstream"
+
+  KafkaBootstrapServers:
+    Description: Kafka bootstrap servers
+    Type: String
+
+  KafkaStreamsReplicationFactor:
+    Description: Kafka streams replication factor
+    Type: Number
+    MinValue: 1
+    MaxValue: 5
+    Default: 3
+
+  WaterstreamTestboxKeypair:
+    Description: EC2 KeyPair for the testbox
+    Type: "AWS::EC2::KeyPair::KeyName"
+
+  DockerhubCredentials:
+    Description: ARN of credentials for DockerHub (because anonymous access exceeds pull limits too fast)
+    Type: "String"
+
+  TestboxInstanceType:
+    Description: EC2 instance type for the testbox
+    Type: String
+    Default: "t3.nano"
+
+  TestboxAmiId:
+    Description: Image ID for the testbox
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  WaterstreamInstances:
+    Description: Waterstream ECS task CPU units
+    Type: Number
+    MinValue: 1
+    MaxValue: 100
+    Default: 1
+
+  WaterstreamEcsTaskCpu:
+    Description: Waterstream ECS task CPU units
+    Type: Number
+    Default: 1024
+    AllowedValues:
+      - 256
+      - 512
+      - 1024
+      - 2048
+      - 4096
+
+  WaterstreamEcsTaskMemory:
+    Description: Waterstream ECS task memory MB
+    Type: Number
+    MinValue: 512
+    MaxValue: 30720
+    Default: 2048
+
+  WaterstreamRamPercentage:
+    Description: Memory fraction used for Waterstream heap
+    Type: Number
+    MinValue: 25
+    MaxValue: 90
+    Default:  80
+
+  WaterstreamEnableSsl:
+    Description: Enable SSL for MQTT connections
+    Type: String
+    Default: false
+    AllowedValues:
+      - false
+      - true
+
+  WaterstreamRequireAuthentication:
+    Description: Require authentication (requires SSL and client certificates)
+    Type: String
+    Default: false
+    AllowedValues:
+      - false
+      - true
+
+  WaterstreamImageName:
+    Description: Waterstream Docker image name
+    Type: String
+    Default: "709825985650.dkr.ecr.us-east-1.amazonaws.com/waterstream/waterstream-kafka"
+
+  WaterstreamImageVersion:
+    Description: Waterstream Docker image name
+    Type: String
+    Default: "1.3.16-SNAPSHOT"
+
+  ResourcesS3Base:
+    Description: Public resources base S3 path
+    Type: String
+    Default: "s3://waterstream-public-resources/cloud_formation_ecs/v1"
+
+  WaterstreamSessionsTopic:
+    Description: Kafka topic for MQTT sessions
+    Type: String
+    Default: "mqtt_sessions"
+
+  WaterstreamSessionsTopicPartitions:
+    Description: Partitions number for WaterstreamSessionsTopic
+    Type: Number
+    MinValue: 1
+    MaxValue: 50
+    Default: 5
+
+  WaterstreamRetainedMessagesTopic:
+    Description: Kafka topic for MQTT retained messages
+    Type: String
+    Default: "mqtt_retained_messages"
+  WaterstreamConnectionsTopic:
+    Description: Kafka topic for MQTT connections
+    Type: String
+    Default: "mqtt_connections"
+  WaterstreamMessagesDefaultTopic:
+    Description: Default Kafka topic for MQTT messages
+    Type: String
+    Default: "mqtt_messages"
+  WaterstreamMessagesDefaultTopicPartitions:
+    Description: Partitions number for WaterstreamMessagesDefaultTopic
+    Type: Number
+    MinValue: 1
+    MaxValue: 50
+    Default: 5
+  WaterstreamDefaultMessagesRetention:
+    Description: Retention for WaterstreamMessagesDefaultTopic, ms
+    Type: Number
+    Default: 86400000 #1 day
+  WaterstreamHeartbeatTopic:
+    Description: Default Kafka topic for MQTT messages
+    Type: String
+    Default: "__waterstream_heartbeat"
+
+
+Outputs:
+  WaterstreamLbHostname:
+    Value: !GetAtt WaterstreamLb.DNSName
+    Export:
+      Name: WaterstreamLbHostname
+
+  WaterstreamGrafanaLbHostname:
+    Value: !GetAtt WaterstreamGrafanaLb.DNSName
+    Export:
+      Name: WaterstreamGrafanaLbHostname
+
+  WaterstreamTestboxHostname:
+    Value: !GetAtt WaterstreamTestbox.PublicDnsName
+    Export:
+      Name: WaterstreamTestboxHostname
+
+Resources:
+
+  #######################
+  ## Roles, Security groups
+  #######################
+
+  WaterstreamTestboxRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "waterstream-testbox-role"
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: "testbox-permissions-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: "ec2:CreateTags"
+                #For signaling when setup is complete
+                Resource: "arn:aws:ec2:*:*:instance/*"
+              - Effect: Allow
+                Action: "cloudformation:DescribeStacks"
+                Resource: !Ref "AWS::StackId"
+
+  WaterstreamTestboxInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: "waterstream-testbox-profile"
+      Roles:
+        - !Ref WaterstreamTestboxRole
+
+  WaterstreamTestboxSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to client host
+      VpcId: !ImportValue WaterstreamVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: "icmp"
+          FromPort: 8
+          ToPort: 0
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          FromPort: 0
+          ToPort: 0
+          CidrIp: 0.0.0.0/0
+
+  #####################################
+  ## EFS, Access points, mount targets
+  #####################################
+
+  WaterstreamResourcesFs:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: true
+      FileSystemTags:
+        - Key: "waterstream-resources"
+          Value: ""
+
+  WaterstreamResourcesBrokerAp:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref WaterstreamResourcesFs
+      RootDirectory:
+        Path: "/tls/mqtt_broker"
+
+  WaterstreamResourcesPrometheusEtcAp:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref WaterstreamResourcesFs
+      RootDirectory:
+        Path: "/prometheus/etc"
+
+  WaterstreamResourcesPrometheusTmpAp:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref WaterstreamResourcesFs
+      RootDirectory:
+        Path: "/prometheus/tmp"
+
+  WaterstreamResourcesGrafanaEtcProvAp:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref WaterstreamResourcesFs
+      RootDirectory:
+        Path: "/grafana/etc-prov"
+
+  WaterstreamResourcesGrafanaDashboardsAp:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref WaterstreamResourcesFs
+      RootDirectory:
+        Path: "/grafana/dashboards"
+
+  WaterstreamResourcesGrafanaDataAp:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref WaterstreamResourcesFs
+      RootDirectory:
+        Path: "/grafana/data"
+
+  WaterstreamEfsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EFS for Waterstream resources
+      VpcId: !ImportValue WaterstreamVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !ImportValue WaterstreamVpcCidr
+
+  WaterstreamResourcesTargetPrivate1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref WaterstreamResourcesFs
+      SecurityGroups:
+        - !Ref WaterstreamEfsSecurityGroup
+      SubnetId: !ImportValue WaterstreamPrivateSubnet1
+
+  WaterstreamResourcesTargetPrivate2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref WaterstreamResourcesFs
+      SecurityGroups:
+        - !Ref WaterstreamEfsSecurityGroup
+      SubnetId: !ImportValue WaterstreamPrivateSubnet2
+
+  WaterstreamResourcesTargetPrivate3:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref WaterstreamResourcesFs
+      SecurityGroups:
+        - !Ref WaterstreamEfsSecurityGroup
+      SubnetId: !ImportValue WaterstreamPrivateSubnet3
+
+  #######################
+  ## Testbox
+  #######################
+
+  WaterstreamTestbox:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - WaterstreamResourcesFs
+      - WaterstreamLb
+    Properties:
+      ImageId: !Ref TestboxAmiId
+      InstanceType: !Ref TestboxInstanceType
+      IamInstanceProfile: !Ref WaterstreamTestboxInstanceProfile
+      KeyName: !Ref WaterstreamTestboxKeypair
+      SubnetId: !ImportValue WaterstreamPublicSubnet1
+      SecurityGroupIds:
+        - !Ref WaterstreamTestboxSecurityGroup
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #cloud-config
+            packages:
+                - gcc
+                - gcc-c++
+                - openssl-devel
+                - amazon-efs-utils
+                - jq
+            write_files:
+                - content: |
+                      #!/bin/sh
+                      export KAFKA_BOOTSTRAP=${KafkaBootstrapServers}
+                      export WATERSTREAM_STACK_NAME=${AWS::StackName}
+                      export AWS_REGION=${AWS::Region}
+                  path: /home/ec2-user/config.sh
+                - content: |
+                       #!/bin/sh
+                       while [ ! -f /home/ec2-user/cloud_init_complete.txt ]; do
+                         echo Testbox cloud-init not complete yet, sleeping...
+                         sleep 10;
+                       done
+                       echo Testbox cloud-init complete
+                  path: /home/ec2-user/wait_cloud_init_complete.sh
+                  permissions: '0555'
+                - content: |
+                    export PATH=$PATH:/home/ec2-user/kafka_2.12-2.6.0/bin
+                    export KAFKA_BOOTSTRAP=${KafkaBootstrapServers}
+                  path: /home/ec2-user/.profile
+                  permissions: '0555'
+                - content: |
+                    [req]
+                    prompt = no
+                    distinguished_name = dn
+
+                    [dn]
+                    CN = ${WaterstreamLb.DNSName}
+                    O = simplematter.io
+                    C = IT
+                  path: /home/ec2-user/tls/mqtt_broker/mqtt_broker.cnf
+                  permissions: '0555'
+                - content: |
+                    /usr/local/lib
+                  path: /etc/ld.so.conf.d/local_libs.conf
+            runcmd:
+                - cd /home/ec2-user
+                - echo Installing JDK and Kafka
+                - sudo amazon-linux-extras install java-openjdk11 -y
+                - sudo amazon-linux-extras install epel -y
+                - wget https://archive.apache.org/dist/kafka/2.6.0/kafka_2.12-2.6.0.tgz
+                - tar -xzf kafka_2.12-2.6.0.tgz
+                - rm kafka_2.12-2.6.0.tgz
+                - cd kafka_2.12-2.6.0
+                - echo Creating Kafka topics
+                - bin/kafka-topics.sh --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic ${WaterstreamSessionsTopic} --partitions ${WaterstreamSessionsTopicPartitions} --replication-factor 3 --config cleanup.policy=compact --config min.compaction.lag.ms=30000 --config delete.retention.ms=600000
+                - bin/kafka-topics.sh --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic ${WaterstreamRetainedMessagesTopic} --partitions 5 --replication-factor 3 --config cleanup.policy=compact --config min.compaction.lag.ms=30000 --config delete.retention.ms=600000
+                - bin/kafka-topics.sh --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic ${WaterstreamConnectionsTopic} --partitions 5 --replication-factor 1 --config cleanup.policy=delete --config retention.ms=600000 --config min.insync.replicas=1
+                - bin/kafka-topics.sh --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic ${WaterstreamMessagesDefaultTopic} --partitions ${WaterstreamMessagesDefaultTopicPartitions} --replication-factor 3 --config retention.ms=${WaterstreamDefaultMessagesRetention}
+                - bin/kafka-topics.sh --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic ${WaterstreamHeartbeatTopic} --partitions 5 --replication-factor 3 --config cleanup.policy=delete --config retention.ms=60000 --config min.insync.replicas=1
+                - cd /home/ec2-user
+                - mkdir -p tls
+                - mkdir -p plain
+                - mkdir -p tls/root
+                - mkdir -p tls/mqtt_broker
+                - mkdir -p tls/clients
+                - echo Downloading resources from S3
+                - aws s3 sync ${ResourcesS3Base}/resources ./resources
+                - mkdir /var/waterstream_resources
+                - mount -t efs ${WaterstreamResourcesFs}:/ /var/waterstream_resources
+                - mkdir -p /var/waterstream_resources/tls
+                - mkdir -p /var/waterstream_resources/tls/root
+                - mkdir -p /var/waterstream_resources/tls/mqtt_broker
+                - mkdir -p /var/waterstream_resources/tls/clients
+                - mkdir -p /var/waterstream_resources/prometheus/etc
+                - mkdir -p /var/waterstream_resources/prometheus/tmp
+                - mkdir -p /var/waterstream_resources/grafana/etc-prov/datasources
+                - mkdir -p /var/waterstream_resources/grafana/etc-prov/dashboards
+                - mkdir -p /var/waterstream_resources/grafana/dashboards
+                - mkdir -p /var/waterstream_resources/grafana/data
+                - chmod a+w -R /var/waterstream_resources/grafana/data
+                - cp -r /var/waterstream_resources/tls/root/* /home/ec2-user/tls/root
+                - cp resources/grafana/datasources.yaml /var/waterstream_resources/grafana/etc-prov/datasources/
+                - cp resources/grafana/dashboard-provider.yaml /var/waterstream_resources/grafana/etc-prov/dashboards/provider.yaml
+                - cp resources/grafana/dashboards/* /var/waterstream_resources/grafana/dashboards/
+                - cp resources/prometheus/prometheus.yml /var/waterstream_resources/prometheus/etc/
+                - cp -r resources/testbox_scripts/* /home/ec2-user/
+                - chmod a+x /home/ec2-user/plain/*.sh
+                - chmod a+x /home/ec2-user/tls/*.sh
+                - echo Generating SSL truststore and keystore
+                - /home/ec2-user/tls/generate_ca.sh
+                - /home/ec2-user/tls/generate_broker_cert.sh
+                - /home/ec2-user/tls/generate_client_cert.sh client1
+                - /home/ec2-user/tls/generate_client_cert.sh client2
+                - /home/ec2-user/tls/copy_waterstream_resources.sh
+                - chown -R ec2-user /home/ec2-user
+                - echo Finalizing mandatory part
+                - curl "http://169.254.169.254/latest/meta-data/instance-id" -o /home/ec2-user/instance-id.txt
+                - aws ec2 create-tags --resources `cat /home/ec2-user/instance-id.txt` --tags Key=KafkaInitialized,Value=true
+                - echo "true" > /home/ec2-user/cloud_init_complete.txt
+                - /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource WaterstreamTestbox --region ${AWS::Region}
+                - echo Downloading and building Mosquitto clients
+                - curl "https://mosquitto.org/files/source/mosquitto-2.0.10.tar.gz" -o /home/ec2-user/mosquitto-2.0.10.tar.gz
+                - tar -xvzf mosquitto-2.0.10.tar.gz
+                - rm mosquitto-2.0.10.tar.gz
+                - cd mosquitto-2.0.10
+                - make install WITH_CJSON=no
+                - ldconfig
+                - chown -R ec2-user /home/ec2-user/mosquitto-2.0.10
+      Tags:
+        - Key: "waterstream-resources"
+          Value: ""
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: "PT10M"
+
+  #######################
+  ## Monitoring, logs
+  #######################
+
+  WaterstreamLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: waterstream_logs
+      RetentionInDays: 1
+
+  WaterstreamPrometheusSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Waterstream Prometheus security group
+      VpcId: !ImportValue WaterstreamVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 9090
+          ToPort: 9090
+          CidrIp: !ImportValue WaterstreamVpcCidr
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          FromPort: 0
+          ToPort: 0
+          #For downloading the image
+          CidrIp: "0.0.0.0/0"
+
+  WaterstreamGrafanaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Waterstream Grafana security group
+      VpcId: !ImportValue WaterstreamVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: !ImportValue WaterstreamVpcCidr
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          FromPort: 0
+          ToPort: 0
+          #For downloading the image
+          CidrIp: "0.0.0.0/0"
+
+  WaterstreamTaskLogsPermissionsPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "waterstream-task-logs-permissions-policy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+              - "logs:DescribeLogStreams"
+            Resource: "arn:aws:logs:*:*:*"
+      Roles:
+        - !Ref WaterstreamEcsTaskExecutionRole
+        - !Ref WaterstreamEcsCwAgentTaskExecutionRole
+
+
+  #######################
+  ## Waterstream
+  #######################
+
+  WaterstreamEcs:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: waterstream_ecs
+
+
+  WaterstreamEcsTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "Waterstream-ecsTaskRole"
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "ecs-tasks.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSMarketplaceMeteringRegisterUsage
+
+  WaterstreamEcsTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "Waterstream-ecsTaskExecutionRole"
+      AssumeRolePolicyDocument:
+        Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - "ecs-tasks.amazonaws.com"
+              Action:
+                - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  WaterstreamTaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Waterstream ECS Task security group
+      VpcId: !ImportValue WaterstreamVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 1882
+          ToPort: 1884
+          CidrIp: !ImportValue WaterstreamVpcCidr
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          FromPort: 0
+          ToPort: 0
+          #For downloading the image
+          CidrIp: "0.0.0.0/0"
+
+  WaterstreamEcsTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: "waterstream_task"
+      NetworkMode: "awsvpc"
+      RequiresCompatibilities:
+        - "FARGATE"
+      Cpu: !Ref WaterstreamEcsTaskCpu
+      Memory: !Ref WaterstreamEcsTaskMemory
+      ExecutionRoleArn: !Ref WaterstreamEcsTaskExecutionRole
+      TaskRoleArn: !Ref WaterstreamEcsTaskRole
+      ContainerDefinitions:
+        - Name: waterstream
+          Cpu: !Ref WaterstreamEcsTaskCpu
+          Essential: true
+          Image: !Sub "${WaterstreamImageName}:${WaterstreamImageVersion}"
+          Memory: !Ref WaterstreamEcsTaskMemory
+          PortMappings:
+            - ContainerPort: 1883
+              HostPort: 1883
+              Protocol: "tcp"
+            - ContainerPort: 1884
+              HostPort: 1884
+              Protocol: "tcp"
+            - ContainerPort: 1885
+              HostPort: 1885
+              Protocol: "tcp"
+          LogConfiguration:
+            LogDriver: "awslogs"
+            Options:
+              "awslogs-region": !Ref AWS::Region
+              "awslogs-group": !Ref WaterstreamLogGroup
+              "awslogs-stream-prefix": "waterstream_broker"
+          MountPoints:
+            - SourceVolume: "waterstream-resources"
+              ContainerPath: "/var/waterstream_resources"
+              ReadOnly: true
+          Environment:
+            - Name: "KAFKA_BOOTSTRAP_SERVERS"
+              Value: !Ref KafkaBootstrapServers
+            - Name: "KAFKA_TRANSACTIONAL_ID"
+              Value: ""
+            - Name: "KAFKA_STREAMS_APP_SERVER_PORT"
+              Value: "1882"
+            - Name: "KAFKA_STREAMS_REPLICATION_FACTOR"
+              Value: !Ref KafkaStreamsReplicationFactor
+            - Name: "SESSION_TOPIC"
+              Value: !Ref WaterstreamSessionsTopic
+            - Name: "RETAINED_MESSAGES_TOPIC"
+              Value: !Ref WaterstreamRetainedMessagesTopic
+            - Name: "CONNECTION_TOPIC"
+              Value: !Ref WaterstreamConnectionsTopic
+            - Name: "KAFKA_MESSAGES_DEFAULT_TOPIC"
+              Value: !Ref WaterstreamMessagesDefaultTopic
+            - Name: "KAFKA_MESSAGES_TOPICS_PATTERNS"
+              Value: ""
+            - Name: "KAFKA_MESSAGES_TOPICS_PREFIXES"
+              Value: ""
+            - Name: "CENTRALIZED_CONSUMER_LISTENER_QUEUE"
+              Value: "4048"
+            - Name: "MQTT_BLOCKING_THREAD_POOL_SIZE"
+              Value: "10"
+            - Name: "MAX_QUEUED_INCOMMING_MESSAGES"
+              Value: "1000"
+            - Name: "MQTT_MAX_IN_FLIGHT_MESSAGES"
+              Value: "10"
+            - Name: "COROUTINES_THREADS"
+              Value: "16"
+#            - Name: "WATERSTREAM_LICENSE_DATA"
+#              Value: var.waterstream_license_file == "" ? "": file("waterstream.license")
+            - Name: "WATERSTREAM_JAVA_OPTS"
+              Value: !Sub "-XX:InitialRAMPercentage=${WaterstreamRamPercentage} -XX:MaxRAMPercentage=${WaterstreamRamPercentage}"
+            - Name: "SSL_ENABLED"
+              Value: !Ref WaterstreamEnableSsl
+            - Name: "SSL_KEY_PATH"
+              Value: "/var/waterstream_resources/mqtt_broker.pkcs8.key"
+            - Name: "SSL_CERT_PATH"
+              Value: "/var/waterstream_resources/mqtt_broker.crt"
+            - Name: "SSL_ADDITIONAL_CA_CERTS_PATH"
+              Value: "/var/waterstream_resources/waterstream_adhoc_ca.pem"
+            - Name: "AUTHENTICATION_REQUIRED"
+              Value: !Ref WaterstreamRequireAuthentication
+            - Name: "AUTHENTICATION_METHOD_CLIENT_SSL_CERT_ENABLED"
+              Value: "true"
+          Ulimits:
+            - Name: "nofile"
+              SoftLimit: 500000
+              HardLimit: 500000
+          DockerLabels:
+            "ECS_PROMETHEUS_EXPORTER_PORT": "1884"
+            "job": "waterstream-kafka"
+            "service": "waterstream"
+      Volumes:
+        - Name: "waterstream-resources"
+          EFSVolumeConfiguration:
+            FilesystemId: !Ref WaterstreamResourcesFs
+            TransitEncryption: "ENABLED"
+            AuthorizationConfig:
+              AccessPointId: !Ref WaterstreamResourcesBrokerAp
+              IAM: "ENABLED"
+
+  WaterstreamEcsService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - WaterstreamLbListener
+      - WaterstreamTestbox
+    Properties:
+      PlatformVersion: "1.4.0"
+      ServiceName: "waterstream"
+      Cluster: !Ref WaterstreamEcs
+      TaskDefinition: !Ref WaterstreamEcsTaskDef
+      DesiredCount: !Ref WaterstreamInstances
+      LaunchType: "FARGATE"
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: "DISABLED"
+          Subnets:
+            - !ImportValue WaterstreamPrivateSubnet1
+            - !ImportValue WaterstreamPrivateSubnet2
+            - !ImportValue WaterstreamPrivateSubnet3
+          SecurityGroups:
+            - !Ref WaterstreamTaskSecurityGroup
+      LoadBalancers:
+        - TargetGroupArn: !Ref WaterstreamLbTarget
+          ContainerName: "waterstream"
+          ContainerPort: 1883
+
+  WaterstreamLbTarget:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Port: 1883
+      Protocol: "TCP"
+      VpcId: !ImportValue WaterstreamVpc
+      TargetType: "ip"
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: "/metrics"
+      HealthCheckPort: 1884
+      HealthCheckProtocol: "HTTP"
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+
+  WaterstreamLb:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Name: "waterstream-lb"
+      Scheme: "internet-facing"
+      Type: "network"
+      Subnets:
+        - !ImportValue WaterstreamPublicSubnet1
+        - !ImportValue WaterstreamPublicSubnet2
+        - !ImportValue WaterstreamPublicSubnet3
+
+
+  WaterstreamLbListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      LoadBalancerArn: !Ref WaterstreamLb
+      Port: 1883
+      Protocol: "TCP"
+      DefaultActions:
+        - Type: "forward"
+          TargetGroupArn: !Ref WaterstreamLbTarget
+
+
+  #######################
+  ## Monitoring
+  #######################
+
+  WaterstreamEcsCwAgentTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "Waterstream-ecsCwAgentTaskRole"
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "ecs-tasks.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+
+  WaterstreamEcsCwAgentTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "Waterstream-ecsCwAgentTaskExecutionRole"
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "ecs-tasks.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: "Waterstream-dockerhub-secret-ecsCwAgentTaskExecution"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "secretsmanager:GetSecretValue"
+                Resource: !Ref DockerhubCredentials
+
+  WaterstreamAllowGetCwParametersPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "waterstream-allow-get-cw-parameters-policy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "ssm:GetParameters"
+            Resource: "arn:aws:ssm:*:*:parameter/AmazonCloudWatch-*"
+      Roles:
+        - !Ref WaterstreamEcsCwAgentTaskExecutionRole
+
+  WaterstreamServiceDiscoveryPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "waterstream-allow-get-cw-parameters-policy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "ecs:DescribeTasks"
+              - "ecs:ListTasks"
+              - "ecs:DescribeContainerInstances"
+              - "ec2:DescribeInstances"
+              - "ecs:DescribeTaskDefinition"
+            Resource: "*"
+      Roles:
+        - !Ref WaterstreamEcsCwAgentTaskRole
+
+
+  WaterstreamCWAgentPrometheusTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "cwagent-prometheus-${WaterstreamClusterName}"
+      NetworkMode: "awsvpc"
+      RequiresCompatibilities:
+        - "FARGATE"
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !Ref WaterstreamEcsCwAgentTaskExecutionRole
+      TaskRoleArn: !Ref WaterstreamEcsCwAgentTaskRole
+      ContainerDefinitions:
+        - Name: "cloudwatch-agent-prometheus"
+          Image: "amazon/cloudwatch-agent:1.247346.0b249609"
+          RepositoryCredentials:
+            CredentialsParameter: !Ref DockerhubCredentials
+          Essential: true
+          MountPoints:
+            - SourceVolume: "waterstream-resources-prometheus-tmp"
+              ContainerPath: "/tmp"
+              ReadOnly: false
+          Environment:
+            - Name: "PROMETHEUS_CONFIG_CONTENT"
+              Value: |
+                global:
+                  scrape_interval: 1m
+                  scrape_timeout: 10s
+                scrape_configs:
+                  - job_name: cwagent-ecs-file-sd-config
+                    sample_limit: 10000
+                    file_sd_configs:
+                      - files: [ "/tmp/cwagent_ecs_auto_sd.yaml" ]
+            - Name: "CW_CONFIG_CONTENT"
+              Value: |
+                {
+                  "agent": {
+                    "debug": true
+                  },
+                  "logs": {
+                    "metrics_collected": {
+                      "prometheus": {
+                        "prometheus_config_path": "env:PROMETHEUS_CONFIG_CONTENT",
+                        "ecs_service_discovery": {
+                          "sd_frequency": "1m",
+                          "sd_result_file": "/tmp/cwagent_ecs_auto_sd.yaml",
+                          "docker_label": {
+                          },
+                          "task_definition_list": [
+                            {
+                              "sd_job_name": "ecs-appmesh-colors",
+                              "sd_metrics_ports": "9901",
+                              "sd_task_definition_arn_pattern": ".*:task-definition/.*-ColorTeller-(white|red):[0-9]+",
+                              "sd_metrics_path": "/stats/prometheus"
+                            },
+                            {
+                              "sd_job_name": "ecs-appmesh-gateway",
+                              "sd_metrics_ports": "9901",
+                              "sd_task_definition_arn_pattern": ".*:task-definition/.*-ColorGateway:[0-9]+",
+                              "sd_metrics_path": "/stats/prometheus"
+                            }
+                          ]
+                        },
+                        "emf_processor": {
+                          "metric_declaration": [
+                          ]
+                        }
+                      }
+                    },
+                    "force_flush_interval": 5
+                  }
+                }
+          LogConfiguration:
+            LogDriver: "awslogs"
+            Options:
+              "awslogs-create-group": "True"
+              "awslogs-region": !Ref AWS::Region
+              "awslogs-group": "/ecs/ecs-cwagent-prometheus"
+              "awslogs-stream-prefix": "ecs-fargate-awsvpc"
+        - Name: "prometheus"
+          Image: "prom/prometheus:v2.23.0"
+          RepositoryCredentials:
+            CredentialsParameter: !Ref DockerhubCredentials
+          Essential: true
+          PortMappings:
+            - ContainerPort: 9090
+              HostPort: 9090
+              Protocol: "tcp"
+            - ContainerPort: 80
+              HostPort: 80
+              Protocol: "tcp"
+          LogConfiguration:
+            LogDriver: "awslogs"
+            Options:
+              "awslogs-create-group": "True"
+              "awslogs-region": !Ref AWS::Region
+              "awslogs-group": !Ref WaterstreamClusterName
+              "awslogs-stream-prefix": "waterstream-prometheus"
+          MountPoints:
+            - SourceVolume: "waterstream-resources-prometheus-etc"
+              ContainerPath: "/etc/prometheus"
+              ReadOnly: true
+            - SourceVolume: "waterstream-resources-prometheus-tmp"
+              ContainerPath: "/tmp"
+              ReadOnly: false
+        - Name: "grafana"
+          Image: "grafana/grafana:7.0.3"
+          RepositoryCredentials:
+            CredentialsParameter: !Ref DockerhubCredentials
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3000
+              HostPort: 3000
+              Protocol: "tcp"
+          LogConfiguration:
+            LogDriver: "awslogs"
+            Options:
+              "awslogs-create-group": "True"
+              "awslogs-region": !Ref AWS::Region
+              "awslogs-group": !Ref WaterstreamClusterName
+              "awslogs-stream-prefix": "waterstream-grafana"
+          MountPoints:
+            - SourceVolume: "waterstream-resources-grafana-etc-prov"
+              ContainerPath: "/etc/grafana/provisioning"
+              ReadOnly: true
+            - SourceVolume: "waterstream-resources-grafana-dashboards"
+              ContainerPath: "/var/waterstream_monitoring/dashboards"
+              ReadOnly: true
+            - SourceVolume: "waterstream-resources-grafana-data"
+              ContainerPath: "/var/lib/grafana"
+              ReadOnly: false
+      Volumes:
+        - Name: "waterstream-resources-prometheus-etc"
+          EFSVolumeConfiguration:
+            FilesystemId: !Ref WaterstreamResourcesFs
+            TransitEncryption: "ENABLED"
+            AuthorizationConfig:
+              AccessPointId: !Ref WaterstreamResourcesPrometheusEtcAp
+              IAM: "ENABLED"
+        - Name: "waterstream-resources-prometheus-tmp"
+          EFSVolumeConfiguration:
+            FilesystemId: !Ref WaterstreamResourcesFs
+            TransitEncryption: "ENABLED"
+            AuthorizationConfig:
+              AccessPointId: !Ref WaterstreamResourcesPrometheusTmpAp
+              IAM: "ENABLED"
+        - Name: "waterstream-resources-grafana-etc-prov"
+          EFSVolumeConfiguration:
+            FilesystemId: !Ref WaterstreamResourcesFs
+            TransitEncryption: "ENABLED"
+            AuthorizationConfig:
+              AccessPointId: !Ref WaterstreamResourcesGrafanaEtcProvAp
+              IAM: "ENABLED"
+        - Name: "waterstream-resources-grafana-dashboards"
+          EFSVolumeConfiguration:
+            FilesystemId: !Ref WaterstreamResourcesFs
+            TransitEncryption: "ENABLED"
+            AuthorizationConfig:
+              AccessPointId: !Ref WaterstreamResourcesGrafanaDashboardsAp
+              IAM: "ENABLED"
+        - Name: "waterstream-resources-grafana-data"
+          EFSVolumeConfiguration:
+            FilesystemId: !Ref WaterstreamResourcesFs
+            TransitEncryption: "ENABLED"
+            AuthorizationConfig:
+              AccessPointId: !Ref WaterstreamResourcesGrafanaDataAp
+              IAM: "ENABLED"
+
+  WaterstreamEcsCwAgentService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - WaterstreamGrafanaLbListener
+      - WaterstreamTestbox
+      - WaterstreamTaskLogsPermissionsPolicy
+    Properties:
+      PlatformVersion: "1.4.0"
+      ServiceName: "waterstream-EcsCwAgentService"
+      Cluster: !Ref WaterstreamEcs
+      TaskDefinition: !Ref WaterstreamCWAgentPrometheusTaskDef
+      DesiredCount: 1
+      LaunchType: "FARGATE"
+      SchedulingStrategy: "REPLICA"
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: "DISABLED"
+          Subnets:
+            - !ImportValue WaterstreamPrivateSubnet1
+            - !ImportValue WaterstreamPrivateSubnet2
+            - !ImportValue WaterstreamPrivateSubnet3
+          SecurityGroups:
+            - !Ref WaterstreamPrometheusSecurityGroup
+            - !Ref WaterstreamGrafanaSecurityGroup
+      LoadBalancers:
+        - TargetGroupArn: !Ref WaterstreamGrafanaLbTarget
+          ContainerName: "grafana"
+          ContainerPort: 3000
+
+  WaterstreamGrafanaLb:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Name: "waterstream-grafana-lb"
+      Scheme: "internet-facing"
+      Type: "network"
+      Subnets:
+        - !ImportValue WaterstreamPublicSubnet1
+        - !ImportValue WaterstreamPublicSubnet2
+        - !ImportValue WaterstreamPublicSubnet3
+
+  WaterstreamGrafanaLbListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      LoadBalancerArn: !Ref WaterstreamGrafanaLb
+      Port: 3000
+      Protocol: "TCP"
+      DefaultActions:
+        - Type: "forward"
+          TargetGroupArn: !Ref WaterstreamGrafanaLbTarget
+
+  WaterstreamGrafanaLbTarget:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Port: 3000
+      Protocol: "TCP"
+      VpcId: !ImportValue WaterstreamVpc
+      TargetType: "ip"
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: "/"
+      HealthCheckPort: 3000
+      HealthCheckProtocol: "HTTP"
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3

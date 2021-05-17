@@ -1,0 +1,15 @@
+apiVersion: 1
+
+providers:
+  - &main_provider
+    name: 'Dashboards'
+    folder: ''
+    type: file
+    disableDeletion: true
+    editable: true
+    updateIntervalSeconds: 30
+    # <bool> allow updating provisioned dashboards from the UI
+    allowUiUpdates: true
+    options:
+      path: /var/waterstream_monitoring/dashboards
+

@@ -1,0 +1,281 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Network and permissions setup for Waterstream
+
+#Parameters:
+
+Mappings:
+  SubnetConfig:
+    VPC:
+      CIDR: "10.0.0.0/16"
+    Public1:
+      CIDR: "10.0.10.0/24"
+    Public2:
+      CIDR: "10.0.11.0/24"
+    Public3:
+      CIDR: "10.0.12.0/24"
+    Private1:
+      CIDR: "10.0.2.0/24"
+    Private2:
+      CIDR: "10.0.3.0/24"
+    Private3:
+      CIDR: "10.0.4.0/24"
+
+Outputs:
+  VpcId:
+    Value: !Ref WaterstreamVpc
+    Export:
+      Name: WaterstreamVpc
+  VpcCidr:
+    Value: !GetAtt WaterstreamVpc.CidrBlock
+    Export:
+      Name: WaterstreamVpcCidr
+  PublicSubnet1:
+    Value: !Ref WaterstreamPublicSubnet1
+    Export:
+      Name: WaterstreamPublicSubnet1
+  PublicSubnet2:
+    Value: !Ref WaterstreamPublicSubnet2
+    Export:
+      Name: WaterstreamPublicSubnet2
+  PublicSubnet3:
+    Value: !Ref WaterstreamPublicSubnet3
+    Export:
+      Name: WaterstreamPublicSubnet3
+  PrivateSubnet1:
+    Value: !Ref WaterstreamPrivateSubnet1
+    Export:
+      Name: WaterstreamPrivateSubnet1
+  PrivateSubnet2:
+    Value: !Ref WaterstreamPrivateSubnet2
+    Export:
+      Name: WaterstreamPrivateSubnet2
+  PrivateSubnet3:
+    Value: !Ref WaterstreamPrivateSubnet3
+    Export:
+      Name: WaterstreamPrivateSubnet3
+
+
+Resources:
+
+  #######################
+  ## VPC, Gateways
+  #######################
+
+  WaterstreamVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !FindInMap
+        - SubnetConfig
+        - VPC
+        - CIDR
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+
+  WaterstreamInternetGw:
+    Type: AWS::EC2::InternetGateway
+
+  WaterstreamInternetRoutingTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: WaterstreamVpc
+
+  AttachInternetGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:
+        Ref: WaterstreamVpc
+      InternetGatewayId:
+        Ref: WaterstreamInternetGw
+
+  WaterstreamPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachInternetGateway
+    Properties:
+      RouteTableId: !Ref WaterstreamInternetRoutingTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref WaterstreamInternetGw
+
+  WaterstreamNatEip:
+    Type: "AWS::EC2::EIP"
+    Properties:
+      Domain: "vpc"
+      
+  WaterstreamNatGw:
+    Type: "AWS::EC2::NatGateway"
+    Properties:
+      AllocationId: !GetAtt WaterstreamNatEip.AllocationId
+      SubnetId: !Ref WaterstreamPublicSubnet1
+
+  WaterstreamNatRoutingTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref WaterstreamVpc
+
+  WaterstreamNatRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref WaterstreamNatRoutingTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId: !Ref WaterstreamNatGw
+
+  ##################
+  ## Subnets
+  ##################
+
+  WaterstreamPublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref WaterstreamVpc
+      CidrBlock: !FindInMap
+        - SubnetConfig
+        - Public1
+        - CIDR
+      AvailabilityZone:
+        Fn::Select:
+          - 0
+          - Fn::GetAZs: !Ref 'AWS::Region'
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: PublicSubnet
+          Value: "1"
+
+  WaterstreamPublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: WaterstreamVpc
+      CidrBlock: !FindInMap
+        - SubnetConfig
+        - Public2
+        - CIDR
+      AvailabilityZone:
+        Fn::Select:
+          - 1
+          - Fn::GetAZs: !Ref 'AWS::Region'
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: PublicSubnet
+          Value: "2"
+
+  WaterstreamPublicSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: WaterstreamVpc
+      CidrBlock: !FindInMap
+        - SubnetConfig
+        - Public3
+        - CIDR
+      AvailabilityZone:
+        Fn::Select:
+          - 2
+          - Fn::GetAZs: !Ref 'AWS::Region'
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: PublicSubnet
+          Value: "3"
+
+  WaterstreamPrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: WaterstreamVpc
+      CidrBlock: !FindInMap
+        - SubnetConfig
+        - Private1
+        - CIDR
+      AvailabilityZone:
+        Fn::Select:
+          - 0
+          - Fn::GetAZs: !Ref 'AWS::Region'
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: PrivateSubnet
+          Value: "1"
+
+  WaterstreamPrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: WaterstreamVpc
+      CidrBlock: !FindInMap
+        - SubnetConfig
+        - Private2
+        - CIDR
+      AvailabilityZone:
+        Fn::Select:
+          - 1
+          - Fn::GetAZs: !Ref 'AWS::Region'
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: PrivateSubnet
+          Value: "2"
+
+  WaterstreamPrivateSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: WaterstreamVpc
+      CidrBlock: !FindInMap
+        - SubnetConfig
+        - Private3
+        - CIDR
+      AvailabilityZone:
+        Fn::Select:
+          - 2
+          - Fn::GetAZs: !Ref 'AWS::Region'
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: PrivateSubnet
+          Value: "3"
+
+  WaterstreamPublicRouteAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: WaterstreamPublicSubnet1
+      RouteTableId:
+        Ref: WaterstreamInternetRoutingTable
+
+  WaterstreamPublicRouteAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: WaterstreamPublicSubnet2
+      RouteTableId:
+        Ref: WaterstreamInternetRoutingTable
+
+  WaterstreamPublicRouteAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: WaterstreamPublicSubnet3
+      RouteTableId:
+        Ref: WaterstreamInternetRoutingTable
+
+  WaterstreamPrivateRouteAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: WaterstreamPrivateSubnet1
+      RouteTableId:
+        Ref: WaterstreamNatRoutingTable
+
+  WaterstreamPrivateRouteAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: WaterstreamPrivateSubnet2
+      RouteTableId:
+        Ref: WaterstreamNatRoutingTable
+
+  WaterstreamPrivateRouteAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: WaterstreamPrivateSubnet3
+      RouteTableId:
+        Ref: WaterstreamNatRoutingTable
+
+
