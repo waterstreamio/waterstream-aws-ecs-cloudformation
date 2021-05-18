@@ -8,12 +8,14 @@ There are 3 CloudFormation templates for this:
 - `kafka_template.yml` starts Kafka cluster in AWS MSK (if you don't already have Kafka) 
 - `waterstream_template.yml` actually starts Waterstream and its auxilary infrastructure (testbox, monitoring).
 
-# Subscribe to Waterstream on AWS Marketplace 
+Subscribe to Waterstream on AWS Marketplace 
+-------------------------------------------
 
 Go to [Waterstream Container product page](https://aws.amazon.com/marketplace/pp/B08ZDMBQY5) in AWS marketplace
 and subscribe to it.
 
-# Create DockerHub secret
+Create DockerHub secret
+-----------------------
 
 You're going to need a [DockerHub](https://hub.docker.com/) account so that you wouldn't hit the pull
 limits when downloading auxiliary containers (e.g. Prometheus and Grafana). Free account is sufficient.
@@ -28,7 +30,8 @@ create a new secret of "Other type of secrets" type and plaintext content like t
 
 Then write down the name you've given to the secret - you'll need it later.
 
-# Make sure you have the necessary permissions 
+Make sure you have the necessary permissions 
+--------------------------------------------
 
 The user that runs the CloudFormation templates should have the following policies: 
 
@@ -57,11 +60,13 @@ first and then attach it.
         }]
       }
 
-# Deploy Commons
+Deploy Commons
+----------------
 
 [Create VPC and subnets](https://console.aws.amazon.com/cloudformation/home#/stacks/quickcreate?templateUrl=https://waterstream-public-resources.s3.eu-central-1.amazonaws.com/cloud_formation_ecs/v1/templates/commons_template.yml)
 
-# Launch Kafka
+Launch Kafka
+------------
 
 If you already have a Kafka cluster and you want to use it for Waterstream you can skip this step.
 If you want a new Kafka cluster specially for Waterstream,
@@ -74,7 +79,8 @@ or by running the following command (if you have AWS CLI configured on your mach
     aws --profile <your AWS CLI profile> kafka get-bootstrap-brokers --cluster-arn <your MSK cluster ARN> | jq -r '.BootstrapBrokerString'
 
 
-# Make sure you have a EC2 keypair for the testbox
+Make sure you have a EC2 keypair for the testbox
+------------------------------------------------
 
 Testbox is an auxiliary EC2 instance which is used to create Kafka topics, issue SSL/TLS certificates
 and run test scripts. You'll need [EC2 key pair](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html)
@@ -82,7 +88,8 @@ to be able to log into it. Private key remains on your machine, and public key i
 so that it could grant you an access to the EC2 instance.
 Create a new key pair in [EC2 console](https://console.aws.amazon.com/ec2/) or make sure you can use an existing one.
 
-# Launch Waterstream
+Launch Waterstream
+------------------
 
 Finally, you can [launch the Waterstream](https://console.aws.amazon.com/cloudformation/home#/stacks/quickcreate?templateUrl=https://waterstream-public-resources.s3.eu-central-1.amazonaws.com/cloud_formation_ecs/v1/templates/waterstream_template.yml)
 Most parameters can be left default. The only parameters you have to specify yourselves are:
@@ -102,7 +109,8 @@ When the stack creation is complete, you can see in the "Output" tab the followi
 - `WaterstreamLbHostname` - MQTT load balancer host name. MQTT clients may connect here, to the port 1883
 - `WaterstreamGrafanaLbHostname` - monitoring system (Grafana) hostname. Open in your browser this host with port 3000 
 
-# Test it
+Test it
+-------
 
 Open in your browser `<WaterstreamGrafanaLbHostname>:3000`, where `WaterstreamGrafanaLbHostname` is taken from the
 Waterstream stack output. 
@@ -121,6 +129,7 @@ and `plain/mqtt_send_sample.sh` in another. You should see the sample message in
 If you're runnning with SSL/TLS - use `tls/mqtt_receive_sample.sh` and `tls/mqtt_send_sample.sh` instead.
 In the dashboard you'll see the number of sent/received messages going up.
 
-# Undeploy
+Undeploy
+--------
 
 First delete Waterstream and Kafka stacks. When they're deleted - also delete commons stack.
