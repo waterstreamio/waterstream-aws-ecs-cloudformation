@@ -2,10 +2,8 @@
 
 set -e
 SCRIPT_DIR=`realpath $(dirname "$0")`
-. $SCRIPT_DIR/../config.sh
 
-WATERSTREAM_STACK_NAME=${STACK_PREFIX}-waterstream
-WATERSTREAM_LB_HOSTNAME=`aws cloudformation describe-stacks --profile $AWS_PROFILE --stack-name ${WATERSTREAM_STACK_NAME} | jq -r '.Stacks[0].Outputs[] | select(.ExportName=="WaterstreamLbHostname").OutputValue'`
+. $SCRIPT_DIR/commons.sh
 
 cd $SCRIPT_DIR
 

@@ -15,7 +15,7 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 2,
+  "id": 1,
   "links": [],
   "panels": [
     {
@@ -82,8 +82,9 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(mqtt_proxy_publish_received[1m]))",
+          "expr": "sum(rate(mqtt_proxy_publish_received[2m]))",
           "instant": false,
+          "interval": "",
           "legendFormat": "received rate, msg/sec",
           "refId": "B"
         },
@@ -93,7 +94,8 @@
           "refId": "C"
         },
         {
-          "expr": "sum(rate(mqtt_proxy_published_to_kafka[1m]))",
+          "expr": "sum(rate(mqtt_proxy_published_to_kafka[2m]))",
+          "interval": "",
           "legendFormat": "kafka publish rate, msg/sec",
           "refId": "A"
         },
@@ -204,7 +206,8 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(mqtt_proxy_publish_sent[1m]))",
+          "expr": "sum(rate(mqtt_proxy_publish_sent[2m]))",
+          "interval": "",
           "legendFormat": "rate, msg/sec",
           "refId": "B"
         },
