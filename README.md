@@ -9,6 +9,7 @@ More specifically, they do the following:
 
 - Create VPC with 3 private and 3 public subnets
 - (optionally) deploy Kafka with AWS MSK into the private subnets
+- Create Kafka topics required for Waterstream 
 - Deploy Waterstream with AWS ECS into the private subnets
 - Create MQTT load balancer in the public subnets to which MQTT clients can connect over the internet
 - (optionally) protect MQTT traffic with SSL/TLS, including client authentication 
@@ -18,6 +19,8 @@ More specifically, they do the following:
   to connect to Waterstream. If SSL/TLS enabled for Waterstream, the testbox is also responsible
   for creating the local Certificate Authority and issuing certificates for the Waterstream and its clients.
 
+[Quickstart guide](QUICKSTART.md) explains how to run these scripts though AWS Console UI, with minimal upfront effort.
+This document explains command-line options and more detailed topics.
 
 Pre-requisites
 --------------
@@ -57,8 +60,11 @@ Custom policies:
         }]
       }
 
-Deploying with CLI
-------------------
+Deploying 
+---------
+
+If you'd like to deploy with AWS Console UI - please refer to the [quickstart guide](QUICKSTART.md).
+If you'd like to deploy with CLI - please follow the following instructions:
 
 - Copy and customize config file:
 
@@ -73,9 +79,6 @@ Deploying with CLI
       ./create_commons.sh
       ./create_kafka.sh
       ./create_waterstream.sh
-
-Deploying with UI
------------------
 
 
 Testing the deploy
@@ -100,8 +103,8 @@ In the dashboard you'll see the number of sent/received messages going up.
 The `local_scripts` folder contains various useful scripts for connecting to Waterstream from the local machine,
 issuing the new client certificates etc.
 
-Undeploying with CLI
---------------------
+Undeploying 
+-----------
 
 Delete all the stacks:
 
