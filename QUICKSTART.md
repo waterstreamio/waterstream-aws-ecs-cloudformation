@@ -60,10 +60,14 @@ first and then attach it.
         }]
       }
 
+![User policies](img/user_policies.png "User policies")
+
 Deploy Commons
 ----------------
 
 [Create VPC and subnets](https://console.aws.amazon.com/cloudformation/home#/stacks/quickcreate?templateUrl=https://waterstream-public-resources.s3.eu-central-1.amazonaws.com/cloud_formation_ecs/v1/templates/commons_template.yml)
+
+![Commons stack create](img/ws_commons_create.png "Commons stack create")
 
 Launch Kafka
 ------------
@@ -71,6 +75,9 @@ Launch Kafka
 If you already have a Kafka cluster and you want to use it for Waterstream you can skip this step.
 If you want a new Kafka cluster specially for Waterstream,
 you can [launch AWS MSK cluster](https://console.aws.amazon.com/cloudformation/home#/stacks/quickcreate?templateUrl=https://waterstream-public-resources.s3.eu-central-1.amazonaws.com/cloud_formation_ecs/v1/templates/kafka_template.yml)
+
+![Kafka stack create](img/ws_kafka_create.png "Kafka stack create")
+
 Check the cluster creation in [AWS MSK console](https://eu-central-1.console.aws.amazon.com/msk/home#/clusters).
 When its creation is complete - write down bootstrap servers, you'll need it in the next step.
 You can get bootstrap servers by clicking "View client information" in "Cluster summary" page
@@ -78,6 +85,8 @@ or by running the following command (if you have AWS CLI configured on your mach
 
     aws --profile <your AWS CLI profile> kafka get-bootstrap-brokers --cluster-arn <your MSK cluster ARN> | jq -r '.BootstrapBrokerString'
 
+![Kafka cluster status](img/kafka_status_focus.png "Kafka cluster status")
+![Kafka client properties](img/kafka_client_props_focus.png "Kafka client properties")
 
 Make sure you have a EC2 keypair for the testbox
 ------------------------------------------------
@@ -103,24 +112,30 @@ With the default options SSL/TLS and client authentication are disabled.
 You can enable them with `WaterstreamEnableSsl` and `WaterstreamRequireAuthentication` parameters
 respecitvely.
 
+![Waterstream stack create 1](img/ws_waterstream_create_1.png "Waterstream stack create 1")
+
+![Waterstream stack create 2](img/ws_waterstream_create_2.png "Waterstream stack create 2")
+
 When the stack creation is complete, you can see in the "Output" tab the following outputs:
 
 - `WaterstreamTestboxHostname` - hostname of the testbox. You can ssh into that machine and do some tests
 - `WaterstreamLbHostname` - MQTT load balancer host name. MQTT clients may connect here, to the port 1883
 - `WaterstreamGrafanaLbHostname` - monitoring system (Grafana) hostname. Open in your browser this host with port 3000 
 
+![Waterstream stack outputs](img/ws_waterstream_outputs.png "Waterstream stack outputs")
+
 Test it
 -------
 
 Open in your browser `<WaterstreamGrafanaLbHostname>:3000`, where `WaterstreamGrafanaLbHostname` is taken from the
-Waterstream stack output. 
+Waterstream stack output. Default credentials are "admin/admin", you'll be prompted to change it
+first time you log in.
 In the left panel click "Dashboards/Manage", then click "Waterstream" dashboard to open it.
 You should see some data in the memory graph, but no actual MQTT stats yet because there were no MQTT connections. 
 
-You can test MQTT connection from any MQTT client on you machine (connecting to `WaterstreamLbHostname:1883`)
-or with the testbox.
+![Grafana dashboard manage](img/grafana_dashboard_manage.png "Grafana: Dashboard/Manage")
 
-Log into the testbox:
+To test it using readily available MQTT clients in the testbox - log into it:
 
     ssh -i <path to identity file> ec2-user@<value from WaterstreamTestboxHostname>
 
@@ -129,7 +144,29 @@ and `plain/mqtt_send_sample.sh` in another. You should see the sample message in
 If you're runnning with SSL/TLS - use `tls/mqtt_receive_sample.sh` and `tls/mqtt_send_sample.sh` instead.
 In the dashboard you'll see the number of sent/received messages going up.
 
+![Testbox pub](img/testbox_pub_terminal.png "Testbox pub")
+![Testbox sub](img/testbox_sub_terminal.png "Testbox sub")
+
+You can test MQTT connection from any MQTT client on you machine (connecting to `WaterstreamLbHostname:1883`)
+or with the testbox. For example, if you have Mosquitto MQTT clients installed locally you can subscribe in one terminal:
+
+    mosquitto_sub -h <value from WaterstreamLbHostname> -p 1883 -t "#" -i mosquitto_l_p1 -q 0 -v
+
+and publish in another:
+
+    mosquitto_pub -h <value from WaterstreamLbHostname> -p 1883 -t "sample_topic" -i mosquitto_l_p2 -q 0 -m "Hello, world!"
+
+
+![Local pub](img/local_pub_terminal.png "Local pub")
+![Local sub](img/local_sub_terminal.png "Local sub")
+
 Undeploy
 --------
 
 First delete Waterstream and Kafka stacks. When they're deleted - also delete commons stack.
+
+Support
+-------
+
+You can get the support on [Waterstream Dev forum](https://dev.waterstream.io/).
+Feel free to write there if you have any questions.

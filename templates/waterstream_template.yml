@@ -92,7 +92,7 @@ Parameters:
   WaterstreamImageVersion:
     Description: Waterstream Docker image name
     Type: String
-    Default: "1.3.16-SNAPSHOT"
+    Default: "1.3.16"
 
   ResourcesS3Base:
     Description: Public resources base S3 path

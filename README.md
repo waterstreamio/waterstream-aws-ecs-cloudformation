@@ -4,7 +4,7 @@ Waterstream - AWS ECS CloudFormation scripts
 Overview
 --------
 
-This repository contains CloudFormation scripts for (Waterstream)[waterstream.io] deploy. 
+This repository contains CloudFormation scripts for [Waterstream](waterstream.io) deploy. 
 More specifically, they do the following:
 
 - Create VPC with 3 private and 3 public subnets
@@ -25,9 +25,9 @@ This document explains command-line options and more detailed topics.
 Pre-requisites
 --------------
 
-- AWS Marketplace subscription for Waterstream from your AWS account
+- [AWS Marketplace subscription](https://aws.amazon.com/marketplace/pp/B08ZDMBQY5) for Waterstream from your AWS account
 - If installing with CLI - AWS CLI installed on your machine (https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
-  Write down the AWS CLI profile name you're going to use for Waterstream deploy.
+  Write down the AWS CLI profile name you're going to use for the Waterstream deploy.
 - Keypair for SSH-ing from your machine into the testbox configured in your AWS account. Write down its name. 
 - DockerHub credentials configured in AWS Secret Manager - anonymous access exceeds pull limits too fast. 
   See https://docs.aws.amazon.com/AmazonECS/latest/developerguide/private-auth.html#private-auth-enable for 
@@ -117,3 +117,8 @@ Or individually:
     #Check in AWS Console that the previous two are deleted before running this one:
     ./destroy_commons.sh
 
+Support
+-------
+
+You can get the support on [Waterstream Dev forum](https://dev.waterstream.io/). 
+Feel free to write there if you have any questions.
