@@ -112,9 +112,9 @@ With the default options SSL/TLS and client authentication are disabled.
 You can enable them with `WaterstreamEnableSsl` and `WaterstreamRequireAuthentication` parameters
 respecitvely.
 
-![Waterstream stack create 1](img/ws_waterstream_create_1.png "Waterstream stack create 1")
+![Waterstream stack create 1](img/ws_waterstream_create_1_focus.png "Waterstream stack create 1")
 
-![Waterstream stack create 2](img/ws_waterstream_create_2.png "Waterstream stack create 2")
+![Waterstream stack create 2](img/ws_waterstream_create_2_focus.png "Waterstream stack create 2")
 
 When the stack creation is complete, you can see in the "Output" tab the following outputs:
 
@@ -134,6 +134,8 @@ In the left panel click "Dashboards/Manage", then click "Waterstream" dashboard 
 You should see some data in the memory graph, but no actual MQTT stats yet because there were no MQTT connections. 
 
 ![Grafana dashboard manage](img/grafana_dashboard_manage.png "Grafana: Dashboard/Manage")
+
+![Grafana Waterstream dashboard](img/waterstream_dashboard.png "Grafana: Waterstream dashboard")
 
 To test it using readily available MQTT clients in the testbox - log into it:
 
