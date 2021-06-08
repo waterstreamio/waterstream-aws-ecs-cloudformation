@@ -1,4 +1,6 @@
 config.sh
 .idea
 .terraform
+waterstream.license
+additional_params.json
 

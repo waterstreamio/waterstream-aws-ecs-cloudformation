@@ -8,7 +8,8 @@ Parameters:
     Default: "waterstream"
 
   KafkaBootstrapServers:
-    Description: Kafka bootstrap servers
+    Description: "Kafka bootstrap servers - e.g. 'server1:port1,server2:port'.
+                  If you use AWS MSK - go to the cluster details page and click 'View client information' to get it."
     Type: String
 
   KafkaStreamsReplicationFactor:
@@ -23,7 +24,8 @@ Parameters:
     Type: "AWS::EC2::KeyPair::KeyName"
 
   DockerhubCredentials:
-    Description: ARN of credentials for DockerHub (because anonymous access exceeds pull limits too fast)
+    Description: "ARN of the DockerHub credentials in the AWS Secrets Manager (needed because anonymous access exceeds DockerHub pull limits too fast).
+                  See https://docs.aws.amazon.com/AmazonECS/latest/developerguide/private-auth.html#private-auth-enable for the creation instructions."
     Type: "String"
 
   TestboxInstanceType:
@@ -35,6 +37,12 @@ Parameters:
     Description: Image ID for the testbox
     Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
     Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  TestboxIngressCidr:
+    Description: "CIDR from which the inbound traffic for the testbox is allowed.
+                  To restrict to specific IP use 'x.x.x.x/32', to allow access from any IP - '0.0.0.0/0'.
+                  Use custom value to limit access to specific subnet only."
+    Type: String
 
   WaterstreamInstances:
     Description: Waterstream ECS task CPU units
@@ -90,7 +98,7 @@ Parameters:
     Default: "709825985650.dkr.ecr.us-east-1.amazonaws.com/waterstream/waterstream-kafka"
 
   WaterstreamImageVersion:
-    Description: Waterstream Docker image name
+    Description: Waterstream Docker image version
     Type: String
     Default: "1.3.16"
 
@@ -134,10 +142,19 @@ Parameters:
     Type: Number
     Default: 86400000 #1 day
   WaterstreamHeartbeatTopic:
-    Description: Default Kafka topic for MQTT messages
+    Description: Waterstream internal hearbeat topic. Don't change the defaults here.
     Type: String
     Default: "__waterstream_heartbeat"
+  WaterstreamByolLicense:
+    Description: "Content of the license file acquired directly from Waterstream vendor.
+                  If license is provided here, Waterstream will not use metering service for charging for hourly usage
+                  (AWS infrastructure fees still apply), it will validate the license instead.
+                  Leave empty to get charged through AWS Metering Service on hourly basis."
+    Type: String
+    Default: ""
 
+Conditions:
+  IsByolEnabled: !Not [ !Equals [ !Ref WaterstreamByolLicense, "" ] ]
 
 Outputs:
   WaterstreamLbHostname:
@@ -202,11 +219,11 @@ Resources:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: 0.0.0.0/0
+          CidrIp: !Ref TestboxIngressCidr
         - IpProtocol: "icmp"
           FromPort: 8
           ToPort: 0
-          CidrIp: 0.0.0.0/0
+          CidrIp: !Ref TestboxIngressCidr
       SecurityGroupEgress:
         - IpProtocol: "-1"
           FromPort: 0
@@ -622,8 +639,10 @@ Resources:
               Value: "10"
             - Name: "COROUTINES_THREADS"
               Value: "16"
-#            - Name: "WATERSTREAM_LICENSE_DATA"
-#              Value: var.waterstream_license_file == "" ? "": file("waterstream.license")
+            - Name: "WATERSTREAM_LICENSE_DATA"
+              Value: !Ref WaterstreamByolLicense
+            - Name: "WATERSTREAM_LICENSE_AWS_MARKETPLACE_ENABLED"
+              Value: !If [ IsByolEnabled, "false", "true" ]
             - Name: "WATERSTREAM_JAVA_OPTS"
               Value: !Sub "-XX:InitialRAMPercentage=${WaterstreamRamPercentage} -XX:MaxRAMPercentage=${WaterstreamRamPercentage}"
             - Name: "SSL_ENABLED"

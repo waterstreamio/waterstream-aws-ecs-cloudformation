@@ -22,6 +22,8 @@ More specifically, they do the following:
 [Quickstart guide](QUICKSTART.md) explains how to run these scripts though AWS Console UI, with minimal upfront effort.
 This document explains command-line options and more detailed topics.
 
+![Waterstream AWS ECS architecture diagram](img/waterstream_aws_architecture.png "Waterstream AWS ECS architecture diagram")
+
 Pre-requisites
 --------------
 

@@ -1,24 +1,35 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Network and permissions setup for Waterstream
 
-#Parameters:
-
-Mappings:
-  SubnetConfig:
-    VPC:
-      CIDR: "10.0.0.0/16"
-    Public1:
-      CIDR: "10.0.10.0/24"
-    Public2:
-      CIDR: "10.0.11.0/24"
-    Public3:
-      CIDR: "10.0.12.0/24"
-    Private1:
-      CIDR: "10.0.2.0/24"
-    Private2:
-      CIDR: "10.0.3.0/24"
-    Private3:
-      CIDR: "10.0.4.0/24"
+Parameters:
+  WaterstreamVpcCidr:
+    Description: CIDR for the Waterstream VPC
+    Type: String
+    Default: "10.0.0.0/16"
+  WaterstreamPublicSubnet1Cidr:
+    Description: CIDR for the Waterstream public subnet 1. Must be subnet of WaterstreamVpcCidr.
+    Type: String
+    Default: "10.0.10.0/24"
+  WaterstreamPublicSubnet2Cidr:
+    Description: CIDR for the Waterstream public subnet 2. Must be subnet of WaterstreamVpcCidr.
+    Type: String
+    Default: "10.0.11.0/24"
+  WaterstreamPublicSubnet3Cidr:
+    Description: CIDR for the Waterstream public subnet 3. Must be subnet of WaterstreamVpcCidr.
+    Type: String
+    Default: "10.0.12.0/24"
+  WaterstreamPrivateSubnet1Cidr:
+    Description: CIDR for the Waterstream private subnet 1. Must be subnet of WaterstreamVpcCidr.
+    Type: String
+    Default: "10.0.2.0/24"
+  WaterstreamPrivateSubnet2Cidr:
+    Description: CIDR for the Waterstream private subnet 2. Must be subnet of WaterstreamVpcCidr.
+    Type: String
+    Default: "10.0.3.0/24"
+  WaterstreamPrivateSubnet3Cidr:
+    Description: CIDR for the Waterstream private subnet 3. Must be subnet of WaterstreamVpcCidr.
+    Type: String
+    Default: "10.0.4.0/24"
 
 Outputs:
   VpcId:
@@ -64,10 +75,7 @@ Resources:
   WaterstreamVpc:
     Type: AWS::EC2::VPC
     Properties:
-      CidrBlock: !FindInMap
-        - SubnetConfig
-        - VPC
-        - CIDR
+      CidrBlock: !Ref WaterstreamVpcCidr
       EnableDnsHostnames: true
       EnableDnsSupport: true
 
@@ -127,10 +135,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref WaterstreamVpc
-      CidrBlock: !FindInMap
-        - SubnetConfig
-        - Public1
-        - CIDR
+      CidrBlock: !Ref WaterstreamPublicSubnet1Cidr
       AvailabilityZone:
         Fn::Select:
           - 0
@@ -145,10 +150,7 @@ Resources:
     Properties:
       VpcId:
         Ref: WaterstreamVpc
-      CidrBlock: !FindInMap
-        - SubnetConfig
-        - Public2
-        - CIDR
+      CidrBlock: !Ref WaterstreamPublicSubnet2Cidr
       AvailabilityZone:
         Fn::Select:
           - 1
@@ -163,10 +165,7 @@ Resources:
     Properties:
       VpcId:
         Ref: WaterstreamVpc
-      CidrBlock: !FindInMap
-        - SubnetConfig
-        - Public3
-        - CIDR
+      CidrBlock: !Ref WaterstreamPublicSubnet3Cidr
       AvailabilityZone:
         Fn::Select:
           - 2
@@ -181,10 +180,7 @@ Resources:
     Properties:
       VpcId:
         Ref: WaterstreamVpc
-      CidrBlock: !FindInMap
-        - SubnetConfig
-        - Private1
-        - CIDR
+      CidrBlock: !Ref WaterstreamPrivateSubnet1Cidr
       AvailabilityZone:
         Fn::Select:
           - 0
@@ -199,10 +195,7 @@ Resources:
     Properties:
       VpcId:
         Ref: WaterstreamVpc
-      CidrBlock: !FindInMap
-        - SubnetConfig
-        - Private2
-        - CIDR
+      CidrBlock: !Ref WaterstreamPrivateSubnet2Cidr
       AvailabilityZone:
         Fn::Select:
           - 1
@@ -217,10 +210,7 @@ Resources:
     Properties:
       VpcId:
         Ref: WaterstreamVpc
-      CidrBlock: !FindInMap
-        - SubnetConfig
-        - Private3
-        - CIDR
+      CidrBlock: !Ref WaterstreamPrivateSubnet3Cidr
       AvailabilityZone:
         Fn::Select:
           - 2

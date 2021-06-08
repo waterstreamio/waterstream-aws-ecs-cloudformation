@@ -8,6 +8,8 @@ There are 3 CloudFormation templates for this:
 - `kafka_template.yml` starts Kafka cluster in AWS MSK (if you don't already have Kafka) 
 - `waterstream_template.yml` actually starts Waterstream and its auxilary infrastructure (testbox, monitoring).
 
+![Waterstream AWS ECS architecture diagram](img/waterstream_aws_architecture.png "Waterstream AWS ECS architecture diagram")
+
 Subscribe to Waterstream on AWS Marketplace 
 -------------------------------------------
 
