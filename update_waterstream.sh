@@ -21,6 +21,11 @@ aws --profile ${AWS_PROFILE} cloudformation update-stack \
   --parameters ParameterKey=WaterstreamTestboxKeypair,ParameterValue=${TESTBOX_KEYPAIR_NAME} \
                ParameterKey=KafkaBootstrapServers,ParameterValue=\"${KAFKA_BOOTSTRAP_SERVERS}\" \
                ParameterKey=DockerhubCredentials,ParameterValue=\"${DOCKERHUB_CREDENTIALS_ARN}\" \
-               ParameterKey=WaterstreamImageName,ParameterValue="870438658538.dkr.ecr.eu-central-1.amazonaws.com/waterstream-kafka" \
-               ParameterKey=WaterstreamImageVersion,ParameterValue=${WATERSTREAM_VERSION}
+               ParameterKey=WaterstreamImageName,ParameterValue=${WATERSTREAM_IMAGE_NAME} \
+               ParameterKey=WaterstreamImageVersion,ParameterValue=${WATERSTREAM_IMAGE_VERSION} \
+               ParameterKey=WaterstreamEnableSsl,ParameterValue=${WATERSTREAM_ENABLE_SSL} \
+               ParameterKey=WaterstreamByolLicense,ParameterValue="${WATERSTREAM_LICENSE_DATA}" \
+               ParameterKey=WaterstreamRequireAuthentication,ParameterValue=${WATERSTREAM_REQUIRE_AUTHENTICATION} \
+               ParameterKey=WaterstreamMqttTopicToKafkaKeyMapping,ParameterValue="${WATERSTREAM_MQTT_TOPIC_TO_KAFKA_MESSAGE_KEY}"
+
 

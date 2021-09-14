@@ -119,6 +119,11 @@ Parameters:
     MaxValue: 50
     Default: 5
 
+  WaterstreamMqttTopicToKafkaKeyMapping:
+    Description: Optional mapping from the MQTT topic name to the Kafka message name
+    Type: String
+    Default: ""
+
   WaterstreamRetainedMessagesTopic:
     Description: Kafka topic for MQTT retained messages
     Type: String
@@ -629,6 +634,8 @@ Resources:
               Value: ""
             - Name: "KAFKA_MESSAGES_TOPICS_PREFIXES"
               Value: ""
+            - Name: "KAFKA_MQTT_TOPIC_TO_MESSAGE_KEY"
+              Value: !Ref WaterstreamMqttTopicToKafkaKeyMapping
             - Name: "CENTRALIZED_CONSUMER_LISTENER_QUEUE"
               Value: "4048"
             - Name: "MQTT_BLOCKING_THREAD_POOL_SIZE"

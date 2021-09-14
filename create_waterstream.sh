@@ -14,13 +14,18 @@ KAFKA_BOOTSTRAP_SERVERS=`aws --profile ${AWS_PROFILE} kafka get-bootstrap-broker
 
 echo Kafka cluster $MSK_ARN bootstrap servers: $KAFKA_BOOTSTRAP_SERVERS
 
-WATERSTREAM_IMAGE_NAME=709825985650.dkr.ecr.us-east-1.amazonaws.com/waterstream/waterstream-kafka
-WATERSTREAM_IMAGE_VERSION=1.3.16
 
-#Disable BYOL:
-WATERSTREAM_LICENSE_DATA=""
-#Enable BYOL:
-#WATERSTREAM_LICENSE_DATA=`sed -e '/^$/,$d' < waterstream.license`
+if [ "$WATERSTREAM_BYOL_ENABLED" = true ]; then
+  echo BYOL enable, AWS Marketplace billing won\'t be used
+  WATERSTREAM_LICENSE_DATA=`sed -e '/^$/,$d' < waterstream.license`
+  if [ -z "$WATERSTREAM_LICENSE_DATA"]; then
+    echo Could not load license data from file, BYOL requested but can\'t be enabled
+    exit 1
+  fi
+else
+  echo BYOL disabled, relying on AWS Marketplace billing
+  WATERSTREAM_LICENSE_DATA=""
+fi
 
 #jq -Rs '[{"ParameterKey": "WaterstreamByolLicense", "ParameterValue": .}]' < waterstream.license > additional_params.json
 #  --parameters file://$SCRIPT_DIR/additional_params.json
@@ -39,6 +44,7 @@ aws --profile ${AWS_PROFILE} cloudformation create-stack \
                ParameterKey=WaterstreamImageVersion,ParameterValue=$WATERSTREAM_IMAGE_VERSION \
                ParameterKey=WaterstreamEnableSsl,ParameterValue=${WATERSTREAM_ENABLE_SSL} \
                ParameterKey=WaterstreamByolLicense,ParameterValue="${WATERSTREAM_LICENSE_DATA}" \
-               ParameterKey=WaterstreamRequireAuthentication,ParameterValue=${WATERSTREAM_REQUIRE_AUTHENTICATION}
+               ParameterKey=WaterstreamRequireAuthentication,ParameterValue=${WATERSTREAM_REQUIRE_AUTHENTICATION} \
+               ParameterKey=WaterstreamMqttTopicToKafkaKeyMapping,ParameterValue="${WATERSTREAM_MQTT_TOPIC_TO_KAFKA_MESSAGE_KEY}"
 
 date

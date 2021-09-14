@@ -7,11 +7,17 @@ KAFKA_INSTANCE="kafka.t3.small"
 KAFKA_NODES=3
 #Pre-existing keypair in AWS to access your testbox
 TESTBOX_KEYPAIR_NAME=changeme
-WATERSTREAM_VERSION=1.3.16-SNAPSHOT
 #Pre-existing secret in AWS Secret Manager for DockerHub authentication
 DOCKERHUB_CREDENTIALS_ARN=arn:aws:secretsmanager:eu-central-1:<your account>:secret:<your secret name>
 WATERSTREAM_ENABLE_SSL=true
 WATERSTREAM_REQUIRE_AUTHENTICATION=true
+
+WATERSTREAM_IMAGE_NAME=709825985650.dkr.ecr.us-east-1.amazonaws.com/waterstream/waterstream-kafka
+WATERSTREAM_IMAGE_VERSION=1.3.16
+
+WATERSTREAM_BYOL_ENABLED=false
+
+WATERSTREAM_MQTT_TOPIC_TO_KAFKA_MESSAGE_KEY=""
 
 #Optional - for TLS functionality in local_scripts. Private key from the testbox keypair.
 IDENTITY_FILE=~/.ssh/id_rsa
