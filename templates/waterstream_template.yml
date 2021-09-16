@@ -43,6 +43,8 @@ Parameters:
                   To restrict to specific IP use 'x.x.x.x/32', to allow access from any IP - '0.0.0.0/0'.
                   Use custom value to limit access to specific subnet only."
     Type: String
+    AllowedPattern: ([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?
+    ConstraintDescription: Must be a valid IPv4 CIDR
 
   WaterstreamInstances:
     Description: Waterstream ECS task CPU units
@@ -152,6 +154,7 @@ Parameters:
     Default: "__waterstream_heartbeat"
   WaterstreamByolLicense:
     Description: "Content of the license file acquired directly from Waterstream vendor.
+                  Can be Base64-encoded to prevent CloudFormation UI from removing the newlines.
                   If license is provided here, Waterstream will not use metering service for charging for hourly usage
                   (AWS infrastructure fees still apply), it will validate the license instead.
                   Leave empty to get charged through AWS Metering Service on hourly basis."

@@ -15,11 +15,11 @@ More specifically, they do the following:
 - (optionally) protect MQTT traffic with SSL/TLS, including client authentication 
 - Deploy Prometheus and Grafana with AWS ECS, configure them to fetch metrics from Waterstream
 - Expose Grafana with a load balancer in the public subnets  
-- Launch a testbox - small EC2 instance that has command-line MQTT clients properly configured
+- Launch the testbox - a small EC2 instance that has command-line MQTT clients properly configured
   to connect to Waterstream. If SSL/TLS enabled for Waterstream, the testbox is also responsible
   for creating the local Certificate Authority and issuing certificates for the Waterstream and its clients.
 
-[Quickstart guide](QUICKSTART.md) explains how to run these scripts though AWS Console UI, with minimal upfront effort.
+[Quickstart guide](QUICKSTART.md) explains how to run these scripts through AWS Console UI, with minimal upfront effort.
 This document explains command-line options and more detailed topics.
 
 ![Waterstream AWS ECS architecture diagram](img/waterstream_aws_architecture.png "Waterstream AWS ECS architecture diagram")

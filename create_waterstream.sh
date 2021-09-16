@@ -42,6 +42,7 @@ aws --profile ${AWS_PROFILE} cloudformation create-stack \
                ParameterKey=DockerhubCredentials,ParameterValue=\"${DOCKERHUB_CREDENTIALS_ARN}\" \
                ParameterKey=WaterstreamImageName,ParameterValue=$WATERSTREAM_IMAGE_NAME \
                ParameterKey=WaterstreamImageVersion,ParameterValue=$WATERSTREAM_IMAGE_VERSION \
+               ParameterKey=WaterstreamInstances,ParameterValue=$WATERSTREAM_INSTANCES \
                ParameterKey=WaterstreamEnableSsl,ParameterValue=${WATERSTREAM_ENABLE_SSL} \
                ParameterKey=WaterstreamByolLicense,ParameterValue="${WATERSTREAM_LICENSE_DATA}" \
                ParameterKey=WaterstreamRequireAuthentication,ParameterValue=${WATERSTREAM_REQUIRE_AUTHENTICATION} \

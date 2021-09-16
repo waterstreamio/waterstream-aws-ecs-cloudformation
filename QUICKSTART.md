@@ -67,7 +67,8 @@ first and then attach it.
 Deploy Commons
 ----------------
 
-[Create VPC and subnets](https://console.aws.amazon.com/cloudformation/home#/stacks/quickcreate?templateUrl=https://waterstream-public-resources.s3.eu-central-1.amazonaws.com/cloud_formation_ecs/v1/templates/commons_template.yml)
+[Create VPC and subnets](https://console.aws.amazon.com/cloudformation/home#/stacks/quickcreate?templateUrl=https://waterstream-public-resources.s3.eu-central-1.amazonaws.com/cloud_formation_ecs/v1/templates/commons_template.yml).
+You may customize the subnet CIDRs.
 
 ![Commons stack create](img/ws_commons_create.png "Commons stack create")
 
