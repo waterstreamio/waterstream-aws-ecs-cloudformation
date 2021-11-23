@@ -210,6 +210,12 @@ Resources:
               - Effect: Allow
                 Action: "cloudformation:DescribeStacks"
                 Resource: !Ref "AWS::StackId"
+              - Effect: Allow
+                Action: "s3:ListBucket"
+                Resource: "arn:aws:s3:::waterstream-public-resources"
+              - Effect: Allow
+                Action: "s3:GetObject"
+                Resource: "arn:aws:s3:::waterstream-public-resources/*"
 
   WaterstreamTestboxInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -411,7 +417,7 @@ Resources:
                 - mkdir -p tls/mqtt_broker
                 - mkdir -p tls/clients
                 - echo Downloading resources from S3
-                - aws s3 sync ${ResourcesS3Base}/resources ./resources
+                - aws s3 sync --no-sign-request ${ResourcesS3Base}/resources ./resources
                 - mkdir /var/waterstream_resources
                 - mount -t efs ${WaterstreamResourcesFs}:/ /var/waterstream_resources
                 - mkdir -p /var/waterstream_resources/tls
@@ -442,7 +448,7 @@ Resources:
                 - chown -R ec2-user /home/ec2-user
                 - echo Finalizing mandatory part
                 - curl "http://169.254.169.254/latest/meta-data/instance-id" -o /home/ec2-user/instance-id.txt
-                - aws ec2 create-tags --resources `cat /home/ec2-user/instance-id.txt` --tags Key=KafkaInitialized,Value=true
+                - aws ec2 create-tags --resources `cat /home/ec2-user/instance-id.txt` --tags Key=KafkaInitialized,Value=true --region ${AWS::Region}
                 - echo "true" > /home/ec2-user/cloud_init_complete.txt
                 - /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource WaterstreamTestbox --region ${AWS::Region}
                 - echo Downloading and building Mosquitto clients
