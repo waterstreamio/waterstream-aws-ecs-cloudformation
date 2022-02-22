@@ -12,6 +12,40 @@ Parameters:
                   If you use AWS MSK - go to the cluster details page and click 'View client information' to get it."
     Type: String
 
+  KafkaSslEndpointIdentificationAlgorithm:
+    Description: "'ssl.endpoint.identification.algorithm' parameter for Kafka client. For AWS MSK leave it blank. For ConfluentCloud put 'https'"
+    Type: String
+    Default: ""
+
+  KafkaSaslJaasConfig:
+    Description: "'sasl.jaas.config' parameter for Kafka client. For AWS MSK leave it blank. For ConfluentCloud put 'org.apache.kafka.common.security.plain.PlainLoginModule required username=\"...username...\" password=\"...password...\";'"
+    Type: String
+    Default: ""
+
+  KafkaSaslMechanism:
+    Description: "'sasl.mechanism' parameter for Kafka client. For AWS MSK leave it blank. For ConfluentCloud put 'PLAIN'"
+    Type: String
+    Default: ""
+
+  KafkaSecurityProtocol:
+    Description: "'security.protocol' parameter for Kafka client."
+    Type: String
+    Default: "PLAINTEXT"
+
+  KafkaRequestTimeoutMs:
+    Description: "'request.timeout.ms' parameter for Kafka client."
+    Type: Number
+    MinValue: 1
+    MaxValue: 1000000
+    Default: 30000
+
+  KafkaRetryBackoffMs:
+    Description: "'retry.backoff.ms' parameter for Kafka client."
+    Type: Number
+    MinValue: 1
+    MaxValue: 1000000
+    Default: 100
+
   KafkaStreamsReplicationFactor:
     Description: Kafka streams replication factor
     Type: Number
@@ -121,6 +155,20 @@ Parameters:
     MaxValue: 50
     Default: 5
 
+  WaterstreamKafkaMessagesTopicPatterns:
+    Description: "Additional topics for messages and respective MQTT topic patterns.
+                  Comma-separated: 'kafkaTopic1:pattern1,kafkaTopic2:pattern2'.
+                  Patterns follow the MQTT subscription wildcards rules."
+    Type: String
+    Default: ""
+
+  WaterstreamKafkaMessagesTopicPrefixes:
+    Description: "Additional topics for messages and respective MQTT topic prefixes.
+                  Comma-separated: 'kafkaTopic1:prefix1,kafkaTopic2:prefix2'.
+                  Unlike patterns, prefixes also affect Kafka message key"
+    Type: String
+    Default: ""
+
   WaterstreamMqttTopicToKafkaKeyMapping:
     Description: Optional mapping from the MQTT topic name to the Kafka message name
     Type: String
@@ -148,10 +196,19 @@ Parameters:
     Description: Retention for WaterstreamMessagesDefaultTopic, ms
     Type: Number
     Default: 86400000 #1 day
-  WaterstreamHeartbeatTopic:
-    Description: Waterstream internal hearbeat topic. Don't change the defaults here.
+  WaterstreamMessagesTopicsReplicaPrefixes:
+    Description: Prefixes for message topic replicas between Kafka clusters
     Type: String
-    Default: "__waterstream_heartbeat"
+    Default: ""
+  WaterstreamMessagesTopicsReplicaSuffixes:
+    Description: Suffixes for message topic replicas between Kafka clusters
+    Type: String
+    Default: ""
+
+#  WaterstreamHeartbeatTopic:
+#    Description: Waterstream internal hearbeat topic. Don't change the defaults here.
+#    Type: String
+#    Default: "__waterstream_heartbeat"
   WaterstreamByolLicense:
     Description: "Content of the license file acquired directly from Waterstream vendor.
                   Can be Base64-encoded to prevent CloudFormation UI from removing the newlines.
@@ -368,6 +425,15 @@ Resources:
                       export AWS_REGION=${AWS::Region}
                   path: /home/ec2-user/config.sh
                 - content: |
+                      bootstrap.servers=${KafkaBootstrapServers}
+                      ssl.endpoint.identification.algorithm=${KafkaSslEndpointIdentificationAlgorithm}
+                      sasl.mechanism=${KafkaSaslMechanism}
+                      retry.backoff.ms=${KafkaRetryBackoffMs}
+                      retry.backoff.ms=${KafkaRetryBackoffMs}
+                      sasl.jaas.config=${KafkaSaslJaasConfig}
+                      security.protocol=${KafkaSecurityProtocol}
+                  path: /home/ec2-user/kafka_config.properties
+                - content: |
                        #!/bin/sh
                        while [ ! -f /home/ec2-user/cloud_init_complete.txt ]; do
                          echo Testbox cloud-init not complete yet, sleeping...
@@ -405,11 +471,11 @@ Resources:
                 - rm kafka_2.12-2.6.0.tgz
                 - cd kafka_2.12-2.6.0
                 - echo Creating Kafka topics
-                - bin/kafka-topics.sh --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic ${WaterstreamSessionsTopic} --partitions ${WaterstreamSessionsTopicPartitions} --replication-factor 3 --config cleanup.policy=compact --config min.compaction.lag.ms=30000 --config delete.retention.ms=600000
-                - bin/kafka-topics.sh --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic ${WaterstreamRetainedMessagesTopic} --partitions 5 --replication-factor 3 --config cleanup.policy=compact --config min.compaction.lag.ms=30000 --config delete.retention.ms=600000
-                - bin/kafka-topics.sh --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic ${WaterstreamConnectionsTopic} --partitions 5 --replication-factor 1 --config cleanup.policy=delete --config retention.ms=600000 --config min.insync.replicas=1
-                - bin/kafka-topics.sh --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic ${WaterstreamMessagesDefaultTopic} --partitions ${WaterstreamMessagesDefaultTopicPartitions} --replication-factor 3 --config retention.ms=${WaterstreamDefaultMessagesRetention}
-                - bin/kafka-topics.sh --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic ${WaterstreamHeartbeatTopic} --partitions 5 --replication-factor 3 --config cleanup.policy=delete --config retention.ms=60000 --config min.insync.replicas=1
+                - bin/kafka-topics.sh --command-config /home/ec2-user/kafka_config.properties --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic ${WaterstreamSessionsTopic} --partitions ${WaterstreamSessionsTopicPartitions} --replication-factor 3 --config cleanup.policy=compact --config min.compaction.lag.ms=30000 --config delete.retention.ms=600000
+                - bin/kafka-topics.sh --command-config /home/ec2-user/kafka_config.properties --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic ${WaterstreamRetainedMessagesTopic} --partitions 5 --replication-factor 3 --config cleanup.policy=compact --config min.compaction.lag.ms=30000 --config delete.retention.ms=600000
+                - bin/kafka-topics.sh --command-config /home/ec2-user/kafka_config.properties --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic ${WaterstreamConnectionsTopic} --partitions 5 --replication-factor 1 --config cleanup.policy=delete --config retention.ms=600000 --config min.insync.replicas=1
+                - bin/kafka-topics.sh --command-config /home/ec2-user/kafka_config.properties --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic ${WaterstreamMessagesDefaultTopic} --partitions ${WaterstreamMessagesDefaultTopicPartitions} --replication-factor 3 --config retention.ms=${WaterstreamDefaultMessagesRetention}
+                - bin/kafka-topics.sh --command-config /home/ec2-user/kafka_config.properties --bootstrap-server ${KafkaBootstrapServers} --create --if-not-exists --topic __waterstream_heartbeat --partitions 5 --replication-factor 3 --config cleanup.policy=delete --config retention.ms=60000 --config min.insync.replicas=1
                 - cd /home/ec2-user
                 - mkdir -p tls
                 - mkdir -p plain
@@ -625,6 +691,18 @@ Resources:
           Environment:
             - Name: "KAFKA_BOOTSTRAP_SERVERS"
               Value: !Ref KafkaBootstrapServers
+            - Name: "KAFKA_SASL_JAAS_CONFIG"
+              Value: !Ref KafkaSaslJaasConfig
+            - Name: "KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM"
+              Value: !Ref KafkaSslEndpointIdentificationAlgorithm
+            - Name: "KAFKA_SASL_MECHANISM"
+              Value: !Ref KafkaSaslMechanism
+            - Name: "KAFKA_SECURITY_PROTOCOL"
+              Value: !Ref KafkaSecurityProtocol
+            - Name: "KAFKA_REQUEST_TIMEOUT_MS"
+              Value: !Ref KafkaRequestTimeoutMs
+            - Name: "KAFKA_RETRY_BACKOFF_MS"
+              Value: !Ref KafkaRetryBackoffMs
             - Name: "KAFKA_TRANSACTIONAL_ID"
               Value: ""
             - Name: "KAFKA_STREAMS_APP_SERVER_PORT"
@@ -640,11 +718,15 @@ Resources:
             - Name: "KAFKA_MESSAGES_DEFAULT_TOPIC"
               Value: !Ref WaterstreamMessagesDefaultTopic
             - Name: "KAFKA_MESSAGES_TOPICS_PATTERNS"
-              Value: ""
+              Value: !Ref WaterstreamKafkaMessagesTopicPatterns
             - Name: "KAFKA_MESSAGES_TOPICS_PREFIXES"
-              Value: ""
+              Value: !Ref WaterstreamKafkaMessagesTopicPrefixes
             - Name: "KAFKA_MQTT_TOPIC_TO_MESSAGE_KEY"
               Value: !Ref WaterstreamMqttTopicToKafkaKeyMapping
+            - Name: "KAFKA_MESSAGES_TOPICS_REPLICA_PREFIXES"
+              Value: !Ref WaterstreamMessagesTopicsReplicaPrefixes
+            - Name: "KAFKA_MESSAGES_TOPICS_REPLICA_SUFFIXES"
+              Value: !Ref WaterstreamMessagesTopicsReplicaSuffixes
             - Name: "CENTRALIZED_CONSUMER_LISTENER_QUEUE"
               Value: "4048"
             - Name: "MQTT_BLOCKING_THREAD_POOL_SIZE"
