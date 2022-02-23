@@ -28,7 +28,7 @@ Parameters:
     Default: ""
 
   KafkaSecurityProtocol:
-    Description: "'security.protocol' parameter for Kafka client."
+    Description: "'security.protocol' parameter for Kafka client. Leave default 'PLAINTEXT' fro AWS MSK. For ConfluentCloud put 'SASL_SSL'"
     Type: String
     Default: "PLAINTEXT"
 
@@ -428,7 +428,7 @@ Resources:
                       bootstrap.servers=${KafkaBootstrapServers}
                       ssl.endpoint.identification.algorithm=${KafkaSslEndpointIdentificationAlgorithm}
                       sasl.mechanism=${KafkaSaslMechanism}
-                      retry.backoff.ms=${KafkaRetryBackoffMs}
+                      request.timeout.ms=${KafkaRequestTimeoutMs}
                       retry.backoff.ms=${KafkaRetryBackoffMs}
                       sasl.jaas.config=${KafkaSaslJaasConfig}
                       security.protocol=${KafkaSecurityProtocol}

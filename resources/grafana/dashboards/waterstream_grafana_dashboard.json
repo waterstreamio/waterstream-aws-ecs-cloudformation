@@ -15,7 +15,7 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 2,
+  "id": 1,
   "links": [],
   "panels": [
     {
@@ -527,13 +527,25 @@
           "interval": "",
           "legendFormat": "Heap max size, bytes ({{instance}})",
           "refId": "B"
+        },
+        {
+          "expr": "process_resident_memory_bytes{job=\"waterstream-kafka\"}",
+          "interval": "",
+          "legendFormat": "Waterstream process resident memory, bytes ({{instance}})",
+          "refId": "C"
+        },
+        {
+          "expr": "jvm_buffer_pool_used_bytes{job=\"waterstream-kafka\", pool=\"direct\"}",
+          "interval": "",
+          "legendFormat": "Direct buffers used, bytes ({{instance}})",
+          "refId": "D"
         }
       ],
       "thresholds": [],
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Waterstream Heap",
+      "title": "Memory",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -712,5 +724,5 @@
   "timezone": "",
   "title": "Waterstream",
   "uid": "ilHi2H-Zz",
-  "version": 2
+  "version": 3
 }

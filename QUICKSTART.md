@@ -76,6 +76,8 @@ Launch Kafka
 ------------
 
 If you already have a Kafka cluster and you want to use it for Waterstream you can skip this step.
+For example, you may [use ConfluentCloud as a KafkaCluster](#running-with-ConfluentCloud)
+
 If you want a new Kafka cluster specially for Waterstream,
 you can [launch AWS MSK cluster](https://console.aws.amazon.com/cloudformation/home#/stacks/quickcreate?templateUrl=https://waterstream-public-resources.s3.eu-central-1.amazonaws.com/cloud_formation_ecs/v1/templates/kafka_template.yml)
 
@@ -169,6 +171,33 @@ Undeploy
 --------
 
 First delete Waterstream and Kafka stacks. When they're deleted - also delete commons stack.
+
+Running with ConfluentCloud
+---------------------------
+
+You can run Waterstream with these scripts using ConfluentCloud as Kafka provider.
+In this case you don't need to [create Kafka CloudFormation stack](#launch-kafka).
+
+Here's how you can prepare to it: 
+
+- An account at https://confluent.cloud 
+- Create a cluster in ConfluentCloud, write down its ID
+- Set up [Confluent CLI](https://docs.confluent.io/confluent-cli/current/install.html#cli-install) locally
+- Create topics: `./createTopicsCCloudMinimal.sh <cluster ID>` or `./createTopicsCCloudBig.sh <cluster ID>`.
+  You can list clusters with `confluent kafka cluster list` and topics with `confluent kafka topic list --cluster <cluster ID>` 
+
+When [creating the Waterstream CloudFormation stack](#launch-waterstream)
+you'll need to customize the following parameters 
+(you'll find values for most of them in ConfluentCloud UI Cluster overview/Configure a client):
+
+- `KafkaBootstrapServers`
+- `KafkaSslEndpointIdentificationAlgorithm`
+- `KafkaSaslJaasConfig`
+- `KafkaSaslMechanism`
+- `KafkaSecurityProtocol`
+
+After undeploying the Waterstream be sure to delete the ConfluentCloud topics: `./deleteTopicsCCloud.sh <cluster ID>`,
+otherwise you'll be charged for the reserved capacity by ConfluentCloud.
 
 Support
 -------
