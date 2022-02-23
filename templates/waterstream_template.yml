@@ -143,6 +143,14 @@ Parameters:
     Type: String
     Default: "s3://waterstream-public-resources/cloud_formation_ecs/v1"
 
+  WaterstreamResourceSuffix:
+    Description: Suffix for disambiguation of resource names in case you have multiple Waterstream deployment on single AWS account.
+    Type: String
+    Default: ""
+    AllowedPattern: "^[A-Za-z0-9-]*$"
+    ConstraintDescription: May contain digits, letters, hyphens. Should be no longer than 32 characters
+    MaxLength: 32
+
   WaterstreamSessionsTopic:
     Description: Kafka topic for MQTT sessions
     Type: String
@@ -225,17 +233,17 @@ Outputs:
   WaterstreamLbHostname:
     Value: !GetAtt WaterstreamLb.DNSName
     Export:
-      Name: WaterstreamLbHostname
+      Name: !Join [ ":", [ !Ref "AWS::StackName", WaterstreamLbHostname] ]
 
   WaterstreamGrafanaLbHostname:
     Value: !GetAtt WaterstreamGrafanaLb.DNSName
     Export:
-      Name: WaterstreamGrafanaLbHostname
+      Name: !Join [ ":", [ !Ref "AWS::StackName", WaterstreamGrafanaLbHostname] ]
 
   WaterstreamTestboxHostname:
     Value: !GetAtt WaterstreamTestbox.PublicDnsName
     Export:
-      Name: WaterstreamTestboxHostname
+      Name: !Join [ ":", [ !Ref "AWS::StackName", WaterstreamTestboxHostname] ]
 
 Resources:
 
@@ -246,7 +254,7 @@ Resources:
   WaterstreamTestboxRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: "waterstream-testbox-role"
+      RoleName: !Join ["", ["waterstream-testbox-role", !Ref WaterstreamResourceSuffix]]
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -277,7 +285,7 @@ Resources:
   WaterstreamTestboxInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      InstanceProfileName: "waterstream-testbox-profile"
+      InstanceProfileName: !Join ["", ["waterstream-testbox-profile", !Ref WaterstreamResourceSuffix]]
       Roles:
         - !Ref WaterstreamTestboxRole
 
@@ -539,7 +547,7 @@ Resources:
   WaterstreamLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: waterstream_logs
+      LogGroupName: !Join ["", ["waterstream_logs-testbox-role", !Ref WaterstreamResourceSuffix]]
       RetentionInDays: 1
 
   WaterstreamPrometheusSecurityGroup:
@@ -601,13 +609,12 @@ Resources:
   WaterstreamEcs:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: waterstream_ecs
-
+      ClusterName: !Join ["", ["waterstream_ecs", !Ref WaterstreamResourceSuffix]]
 
   WaterstreamEcsTaskRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: "Waterstream-ecsTaskRole"
+      RoleName: !Join ["", ["Waterstream-ecsTaskRole", !Ref WaterstreamResourceSuffix]]
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -622,7 +629,7 @@ Resources:
   WaterstreamEcsTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: "Waterstream-ecsTaskExecutionRole"
+      RoleName: !Join ["", ["Waterstream-ecsTaskExecutionRole", !Ref WaterstreamResourceSuffix]]
       AssumeRolePolicyDocument:
         Statement:
             - Effect: Allow
@@ -815,7 +822,7 @@ Resources:
   WaterstreamLb:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
     Properties:
-      Name: "waterstream-lb"
+      Name:  !Join ["", ["waterstream-lb", !Ref WaterstreamResourceSuffix]]
       Scheme: "internet-facing"
       Type: "network"
       Subnets:
@@ -842,7 +849,7 @@ Resources:
   WaterstreamEcsCwAgentTaskRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: "Waterstream-ecsCwAgentTaskRole"
+      RoleName: !Join ["", ["Waterstream-ecsCwAgentTaskRole", !Ref WaterstreamResourceSuffix]]
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -857,7 +864,7 @@ Resources:
   WaterstreamEcsCwAgentTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: "Waterstream-ecsCwAgentTaskExecutionRole"
+      RoleName: !Join ["", ["Waterstream-ecsCwAgentTaskExecutionRole", !Ref WaterstreamResourceSuffix]]
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -1111,7 +1118,7 @@ Resources:
   WaterstreamGrafanaLb:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
     Properties:
-      Name: "waterstream-grafana-lb"
+      Name: !Join ["", ["waterstream-grafana-lb", !Ref WaterstreamResourceSuffix]]
       Scheme: "internet-facing"
       Type: "network"
       Subnets:
